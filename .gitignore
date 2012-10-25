@@ -1,0 +1,7 @@
+/build
+/nbproject/private/
+/manifest.mf
+/dist
+/nbproject
+build.xml
+/lib/beast2.jar
