@@ -41,6 +41,7 @@ public class DistributionSwitcher extends Distribution {
     public Input<List<Distribution>> distributionsInput =
             new Input<List<Distribution>>("distribution",
             "Distribution to select using modelNumber.",
+            new ArrayList<Distribution>(),
             Validate.REQUIRED);
     
     int nDistribs;

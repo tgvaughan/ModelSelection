@@ -24,6 +24,7 @@ import beast.core.parameter.IntegerParameter;
 import beast.core.parameter.RealParameter;
 import beast.util.Randomizer;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -37,19 +38,24 @@ import java.util.Map;
         + "Useful for model selection calculations.")
 public class ConditionalScaleOperator extends Operator {
 
-    public Input<Integer> modelNumberInput = new Input<Integer> ("modelNumber",
+    public Input<IntegerParameter> modelNumberInput =
+            new Input<IntegerParameter> ("modelNumber",
             "Model selector.  Used to select set of parameters available for "
             + "modification.", Validate.REQUIRED);
     
-    public Input<List<RealParameter>> parametersInput = new Input<List<RealParameter>>(
-            "parameter", "Parameter for operator to scale.", Validate.REQUIRED);
+    public Input<List<RealParameter>> parametersInput =
+            new Input<List<RealParameter>>("parameter",
+            "Parameter for operator to scale.",
+            new ArrayList<RealParameter>(), Validate.REQUIRED);
     
-    public Input<IntegerParameter> parameterSetsInput = new Input<IntegerParameter>(
-            "parameterSets", "List of indicies specifying set to which each parameter belongs.",
+    public Input<IntegerParameter> parameterSetsInput =
+            new Input<IntegerParameter>("parameterSets",
+            "List of indicies specifying set to which each parameter belongs.",
             Validate.REQUIRED);
     
-    public Input<RealParameter> scaleFactorInput = new Input<RealParameter>(
-            "scaleFactor", "Maximum scale factor used to generate proposal.",
+    public Input<RealParameter> scaleFactorInput =
+            new Input<RealParameter>("scaleFactor",
+            "Maximum scale factor used to generate proposal.",
             Validate.REQUIRED);
     
     Map<Integer, List<RealParameter>> parameterLists;
@@ -69,6 +75,10 @@ public class ConditionalScaleOperator extends Operator {
                     + " 1 and does not match number of parameters provided.");
         
         // Sort parameters  and scale factors into distinct groups according to index list.
+        
+        parameterLists = new HashMap<Integer,List<RealParameter>>();
+        scaleFactors = new HashMap<Integer, List<Double>>();
+        
         for (int i=0; i<parameterSetsInput.get().getDimension(); i++) {
             int idx = parameterSetsInput.get().getValue(i);
             
@@ -78,19 +88,23 @@ public class ConditionalScaleOperator extends Operator {
             }
             
             parameterLists.get(idx).add(parametersInput.get().get(i));
+            double f;
             if (scaleFactorInput.get().getDimension()>1)
-                scaleFactors.get(idx).add(scaleFactorInput.get().getArrayValue(i));
+                f = scaleFactorInput.get().getArrayValue(i);
             else
-                scaleFactors.get(idx).add(scaleFactorInput.get().getValue());
+                f = scaleFactorInput.get().getValue();
+            
+            if (f<0.0)
+                f = 1.0/f;
+            scaleFactors.get(idx).add(f);
         }
-        
 
     }
 
     @Override
     public double proposal() {
         // Choose parameter to modify:
-        int m = modelNumberInput.get();        
+        int m = modelNumberInput.get().getValue();        
         int nParams = parameterLists.get(m).size();        
         int i = Randomizer.nextInt(nParams);
         RealParameter param = parameterLists.get(m).get(i);
