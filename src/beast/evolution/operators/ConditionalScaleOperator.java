@@ -48,39 +48,39 @@ public class ConditionalScaleOperator extends Operator {
             "Parameter for operator to scale.",
             new ArrayList<RealParameter>(), Validate.REQUIRED);
     
-    public Input<IntegerParameter> parameterSetsInput =
-            new Input<IntegerParameter>("parameterSets",
-            "List of indicies specifying set to which each parameter belongs.",
+    public Input<IntegerParameter> parameterModelIndicesInput =
+            new Input<IntegerParameter>("parameterModelIndices",
+            "Indecies of models to which each parameter belongs.",
             Validate.REQUIRED);
     
-    public Input<RealParameter> scaleFactorInput =
-            new Input<RealParameter>("scaleFactor",
-            "Maximum scale factor used to generate proposal.",
+    public Input<RealParameter> scaleFactorsInput =
+            new Input<RealParameter>("scaleFactors",
+            "Scale factor(s) applied to parameters.",
             Validate.REQUIRED);
     
     Map<Integer, List<RealParameter>> parameterLists;
     Map<Integer, List<Double>> scaleFactors;
     
     @Override
-    public void initAndValidate() {
+    public void initAndValidate() throws Exception {
         
-        if (parametersInput.get().size() != parameterSetsInput.get().getDimension())
+        if (parametersInput.get().size() != parameterModelIndicesInput.get().getDimension())
             throw new IllegalArgumentException("Number of parameters does not "
                     + "match number of parameter set indices.");
         
         // Check size of scale factor array provided:
-        if (scaleFactorInput.get().getDimension()>1 &&
-                scaleFactorInput.get().getDimension() != parametersInput.get().size())
+        if (scaleFactorsInput.get().getDimension()>1 &&
+                scaleFactorsInput.get().getDimension() != parametersInput.get().size())
             throw new IllegalArgumentException("Number of scale factors is not"
                     + " 1 and does not match number of parameters provided.");
         
-        // Sort parameters  and scale factors into distinct groups according to index list.
+        // Sort parameters and scale factors into distinct groups according to index list.
         
         parameterLists = new HashMap<Integer,List<RealParameter>>();
         scaleFactors = new HashMap<Integer, List<Double>>();
         
-        for (int i=0; i<parameterSetsInput.get().getDimension(); i++) {
-            int idx = parameterSetsInput.get().getValue(i);
+        for (int i=0; i<parameterModelIndicesInput.get().getDimension(); i++) {
+            int idx = parameterModelIndicesInput.get().getValue(i);
             
             if (!parameterLists.containsKey(idx)) {
                 parameterLists.put(idx, new ArrayList<RealParameter>());
@@ -89,16 +89,21 @@ public class ConditionalScaleOperator extends Operator {
             
             parameterLists.get(idx).add(parametersInput.get().get(i));
             double f;
-            if (scaleFactorInput.get().getDimension()>1)
-                f = scaleFactorInput.get().getArrayValue(i);
+            if (scaleFactorsInput.get().getDimension()>1)
+                f = scaleFactorsInput.get().getValue(i);
             else
-                f = scaleFactorInput.get().getValue();
+                f = scaleFactorsInput.get().getValue();
             
             if (f<0.0)
                 f = 1.0/f;
             scaleFactors.get(idx).add(f);
         }
 
+        // Tell BEAST that we don't want the scale factors and model indices
+        // to form part of the state
+        
+        parameterModelIndicesInput.get().m_bIsEstimated.setValue(false, parameterModelIndicesInput.get());
+        scaleFactorsInput.get().m_bIsEstimated.setValue(false, scaleFactorsInput.get());
     }
 
     @Override
