@@ -14,11 +14,12 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package beast.evolution.tree.coalescent;
+package timsaddons.modelselection;
 
 import beast.core.Description;
 import beast.core.Input;
 import beast.core.Input.Validate;
+import beast.evolution.tree.coalescent.PopulationFunction;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
