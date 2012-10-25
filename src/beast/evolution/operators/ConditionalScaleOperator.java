@@ -89,8 +89,6 @@ public class ConditionalScaleOperator extends Operator {
 
     @Override
     public double proposal() {
-        double logHR = 0.0;
-
         // Choose parameter to modify:
         int m = modelNumberInput.get();        
         int nParams = parameterLists.get(m).size();        
@@ -101,6 +99,16 @@ public class ConditionalScaleOperator extends Operator {
         double fmax = scaleFactors.get(m).get(i);
         double f = 1.0/fmax + Randomizer.nextDouble()*(fmax-1.0/fmax);
         
-        return logHR;
+        // Record old parameter value for HR calculation:
+        double oldVal = param.getValue();
+        
+        // Use scale factor to propose new parameter value:
+        double newVal = oldVal*f;
+        
+        // Update StateNode:
+        param.setValue(newVal);
+        
+        // Return Hastings ratio:
+        return Math.log(oldVal/newVal);
     }    
 }
