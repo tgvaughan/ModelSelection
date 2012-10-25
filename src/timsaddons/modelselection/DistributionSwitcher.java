@@ -56,7 +56,8 @@ public class DistributionSwitcher extends Distribution {
     @Override
     public double calculateLogP() throws Exception {
         int m = modelNumberInput.get().getValue();
-        return distributionsInput.get().get(m).calculateLogP();
+        logP = distributionsInput.get().get(m).calculateLogP();
+        return logP;
     }
 
     @Override
