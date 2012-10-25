@@ -46,17 +46,33 @@ public class DistributionSwitcher extends Distribution {
     
     int nDistribs;
     
+    boolean distribsInitialised;
+    
     @Override
-    public void initAndValidate() {
+    public void initAndValidate() throws Exception {
         nDistribs = distributionsInput.get().size();
         modelNumberInput.get().setLower(0);
         modelNumberInput.get().setUpper(nDistribs-1);
+        
+        distribsInitialised = false;
     }
     
     @Override
     public double calculateLogP() throws Exception {
-        int m = modelNumberInput.get().getValue();
-        logP = distributionsInput.get().get(m).calculateLogP();
+        
+        if (!distribsInitialised) {
+            for (int m=0; m<nDistribs; m++) {
+                if (m==modelNumberInput.get().getValue())
+                    logP = distributionsInput.get().get(m).calculateLogP();
+                else
+                    distributionsInput.get().get(m).calculateLogP();
+            }            
+            distribsInitialised = true;
+        } else {            
+            int m = modelNumberInput.get().getValue();
+            logP = distributionsInput.get().get(m).calculateLogP();
+        }
+        
         return logP;
     }
 
