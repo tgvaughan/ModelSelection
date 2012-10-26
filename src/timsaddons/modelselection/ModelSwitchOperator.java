@@ -17,17 +17,19 @@
 package timsaddons.modelselection;
 
 import beast.core.Description;
-import beast.core.Distribution;
 import beast.core.Input;
 import beast.core.Input.Validate;
 import beast.core.Operator;
 import beast.core.parameter.IntegerParameter;
 import beast.core.parameter.RealParameter;
+import beast.math.distributions.Gamma;
 import beast.util.Randomizer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.apache.commons.math.distribution.GammaDistribution;
+import org.apache.commons.math.distribution.GammaDistributionImpl;
 
     
 /**
@@ -51,13 +53,21 @@ public class ModelSwitchOperator extends Operator {
             "Indecies of models to which each parameter belongs.",
             Validate.REQUIRED);
     
-    public Input<List<Distribution>> priorDistributionsInput =
-            new Input<List<Distribution>>("prior",
-            "Prior distribution to select new parameter from",
-            new ArrayList<Distribution>(), Validate.REQUIRED);
+    public Input<RealParameter> proposalAlphaInput =
+            new Input<RealParameter>("proposalAlpha",
+            "Alpha (shape) parameters of proposal gamma distribution for each parameter.",
+            Validate.REQUIRED);
+    
+    public Input<RealParameter> proposalLambdaInput =
+            new Input<RealParameter>("proposalLambda",
+            "Lambda (rate) parameters of proposal gamma distribution for each parameter.",
+            Validate.REQUIRED);
     
     Map<Integer, List<RealParameter>> parameterLists;
-    Map<Integer, List<Distribution>> priorLists;
+    Map<Integer, List<Double>> proposalAlphaLists;
+    Map<Integer, List<Double>> proposalLambdaLists;
+    
+    int nModels;
     
     @Override
     public void initAndValidate() throws Exception {
@@ -67,25 +77,39 @@ public class ModelSwitchOperator extends Operator {
                     + "match number of parameter set indices.");
         
         // Check size of scale factor array provided:
-        if (priorDistributionsInput.get().size() != parametersInput.get().size())
-            throw new IllegalArgumentException("Number of priors does not"
-                    + " match number of parameters provided.");
+        int nParameters = parametersInput.get().size();
+        if ((proposalAlphaInput.get().getDimension() != nParameters)
+                || (proposalLambdaInput.get().getDimension() != nParameters))
+            throw new IllegalArgumentException("Number of proposal alpha or "
+                    + "lambda parameters does not match number of model "
+                    + "parameters provided.");
         
         // Sort parameters and scale factors into distinct groups according to index list.
         
         parameterLists = new HashMap<Integer,List<RealParameter>>();
-        priorLists = new HashMap<Integer, List<Distribution>>();
+        proposalAlphaLists = new HashMap<Integer, List<Double>>();
+        proposalLambdaLists = new HashMap<Integer, List<Double>>();
         
         for (int i=0; i<parameterModelIndicesInput.get().getDimension(); i++) {
             int idx = parameterModelIndicesInput.get().getValue(i);
             
             if (!parameterLists.containsKey(idx)) {
                 parameterLists.put(idx, new ArrayList<RealParameter>());
-                priorLists.put(idx, new ArrayList<Distribution>());
+                proposalAlphaLists.put(idx, new ArrayList<Double>());
+                proposalLambdaLists.put(idx, new ArrayList<Double>());
             }
             
             parameterLists.get(idx).add(parametersInput.get().get(i));
-            priorLists.get(idx).add(priorDistributionsInput.get().get(i));
+            proposalAlphaLists.get(idx).add(proposalAlphaInput.get().getArrayValue(i));
+            proposalLambdaLists.get(idx).add(proposalLambdaInput.get().getArrayValue(i));
+        }
+        
+        // Record distinct number of models seen:
+        nModels = parameterLists.size();
+        
+        if (nModels<2) {
+            throw new IllegalArgumentException("ModelSwitchOperator needs at "
+                    + "least 2 distinct models to switch between.");
         }
 
         // Tell BEAST that we don't want the scale factors and model indices
@@ -96,26 +120,36 @@ public class ModelSwitchOperator extends Operator {
 
     @Override
     public double proposal() {
-        // Choose parameter to modify:
-        int m = modelNumberInput.get().getValue();        
-        int nParams = parameterLists.get(m).size();        
-        int i = Randomizer.nextInt(nParams);
-        RealParameter param = parameterLists.get(m).get(i);
         
-        // Choose scale factor:
-        double fmax = scaleFactors.get(m).get(i);
-        double f = 1.0/fmax + Randomizer.nextDouble()*(fmax-1.0/fmax);
+        // Uniformly select new model from available models:
+        int oldModel = modelNumberInput.get().getValue();
+        int newModel;
+        do {
+            newModel = Randomizer.nextInt(nModels);
+        } while (newModel == oldModel);
+
+        // Update model number
+        modelNumberInput.get().setValue(newModel);
         
-        // Record old parameter value for HR calculation:
-        double oldVal = param.getValue();
+        // Record selection probability of old parameters in HR:
+        double logHR = 0;
+        for (int i=0; i<parameterLists.get(oldModel).size(); i++) {
+            double alpha = proposalAlphaLists.get(oldModel).get(i);
+            double lambda = proposalLambdaLists.get(oldModel).get(i);
+            double x = parameterLists.get(oldModel).get(i).getValue();
+            logHR += (new GammaDistributionImpl(alpha, lambda)).density(x);
+        }
         
-        // Use scale factor to propose new parameter value:
-        double newVal = oldVal*f;
+        // Select new parameters and incorporate selection probability into HR:
+        for (int i=0; i<parameterLists.get(newModel).size(); i++) {
+            double alpha = proposalAlphaLists.get(newModel).get(i);
+            double lambda = proposalLambdaLists.get(newModel).get(i);
+            double xprime = Randomizer.nextGamma(alpha, lambda);
+            logHR -= (new GammaDistributionImpl(alpha, lambda)).density(xprime);
+            
+            parameterLists.get(newModel).get(i).setValue(xprime);
+        }
         
-        // Update StateNode:
-        param.setValue(newVal);
-        
-        // Return Hastings ratio:
-        return Math.log(oldVal/newVal);
+        return logHR;
     }
 }
