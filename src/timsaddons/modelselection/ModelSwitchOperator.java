@@ -22,13 +22,15 @@ import beast.core.Input.Validate;
 import beast.core.Operator;
 import beast.core.parameter.IntegerParameter;
 import beast.core.parameter.RealParameter;
-import beast.math.distributions.Gamma;
 import beast.util.Randomizer;
+import java.io.FileNotFoundException;
+import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import org.apache.commons.math.distribution.GammaDistribution;
+import java.util.Set;
 import org.apache.commons.math.distribution.GammaDistributionImpl;
 
     
@@ -45,7 +47,7 @@ public class ModelSwitchOperator extends Operator {
     
     public Input<List<RealParameter>> parametersInput =
             new Input<List<RealParameter>>("parameter",
-            "Parameter for operator to scale.",
+            "Model parameter - will be modified when corresp. model is chosen.",
             new ArrayList<RealParameter>(), Validate.REQUIRED);
     
     public Input<IntegerParameter> parameterModelIndicesInput =
@@ -54,18 +56,14 @@ public class ModelSwitchOperator extends Operator {
             Validate.REQUIRED);
     
     public Input<RealParameter> proposalAlphaInput =
-            new Input<RealParameter>("proposalAlpha",
+            new Input<RealParameter>("proposalAlphas",
             "Alpha (shape) parameters of proposal gamma distribution for each parameter.",
             Validate.REQUIRED);
     
     public Input<RealParameter> proposalLambdaInput =
-            new Input<RealParameter>("proposalLambda",
+            new Input<RealParameter>("proposalLambdas",
             "Lambda (rate) parameters of proposal gamma distribution for each parameter.",
             Validate.REQUIRED);
-    
-    Map<Integer, List<RealParameter>> parameterLists;
-    Map<Integer, List<Double>> proposalAlphaLists;
-    Map<Integer, List<Double>> proposalLambdaLists;
     
     int nModels;
     
@@ -84,28 +82,13 @@ public class ModelSwitchOperator extends Operator {
                     + "lambda parameters does not match number of model "
                     + "parameters provided.");
         
-        // Sort parameters and scale factors into distinct groups according to index list.
         
-        parameterLists = new HashMap<Integer,List<RealParameter>>();
-        proposalAlphaLists = new HashMap<Integer, List<Double>>();
-        proposalLambdaLists = new HashMap<Integer, List<Double>>();
-        
-        for (int i=0; i<parameterModelIndicesInput.get().getDimension(); i++) {
-            int idx = parameterModelIndicesInput.get().getValue(i);
-            
-            if (!parameterLists.containsKey(idx)) {
-                parameterLists.put(idx, new ArrayList<RealParameter>());
-                proposalAlphaLists.put(idx, new ArrayList<Double>());
-                proposalLambdaLists.put(idx, new ArrayList<Double>());
-            }
-            
-            parameterLists.get(idx).add(parametersInput.get().get(i));
-            proposalAlphaLists.get(idx).add(proposalAlphaInput.get().getArrayValue(i));
-            proposalLambdaLists.get(idx).add(proposalLambdaInput.get().getArrayValue(i));
+        // Record distinct number of model indices:
+        Set<Integer> modelIndices = new HashSet<Integer>();
+        for (int idx : parameterModelIndicesInput.get().getValues()) {
+            modelIndices.add(idx);
         }
-        
-        // Record distinct number of models seen:
-        nModels = parameterLists.size();
+        nModels = modelIndices.size();
         
         if (nModels<2) {
             throw new IllegalArgumentException("ModelSwitchOperator needs at "
@@ -116,6 +99,8 @@ public class ModelSwitchOperator extends Operator {
         // to form part of the state
         
         parameterModelIndicesInput.get().m_bIsEstimated.setValue(false, parameterModelIndicesInput.get());
+        proposalAlphaInput.get().m_bIsEstimated.setValue(false, proposalAlphaInput.get());
+        proposalLambdaInput.get().m_bIsEstimated.setValue(false, proposalLambdaInput.get());
     }
 
     @Override
@@ -133,23 +118,52 @@ public class ModelSwitchOperator extends Operator {
         
         // Record selection probability of old parameters in HR:
         double logHR = 0;
-        for (int i=0; i<parameterLists.get(oldModel).size(); i++) {
-            double alpha = proposalAlphaLists.get(oldModel).get(i);
-            double lambda = proposalLambdaLists.get(oldModel).get(i);
-            double x = parameterLists.get(oldModel).get(i).getValue();
-            logHR += (new GammaDistributionImpl(alpha, lambda)).density(x);
-        }
         
-        // Select new parameters and incorporate selection probability into HR:
-        for (int i=0; i<parameterLists.get(newModel).size(); i++) {
-            double alpha = proposalAlphaLists.get(newModel).get(i);
-            double lambda = proposalLambdaLists.get(newModel).get(i);
-            double xprime = Randomizer.nextGamma(alpha, lambda);
-            logHR -= (new GammaDistributionImpl(alpha, lambda)).density(xprime);
+        for (int i=0; i<parameterModelIndicesInput.get().getDimension(); i++) {
+            int m = parameterModelIndicesInput.get().getValue(i);
             
-            parameterLists.get(newModel).get(i).setValue(xprime);
+            if (m==oldModel) {
+                double alpha = proposalAlphaInput.get().getValue(i);
+                double lambda = proposalLambdaInput.get().getValue(i);
+                double x = parametersInput.get().get(i).getValue();
+                
+                logHR += (new GammaDistributionImpl(alpha, 1./lambda)).density(x);
+            }
+            
+            if (m==newModel) {
+                double alpha = proposalAlphaInput.get().getValue(i);
+                double lambda = proposalLambdaInput.get().getValue(i);
+                double xprime = Randomizer.nextGamma(alpha, lambda);
+                
+                logHR -= (new GammaDistributionImpl(alpha, 1./lambda)).density(xprime);
+                
+                parametersInput.get().get(i).setValue(xprime);
+            }
         }
         
         return logHR;
+    }
+    
+    /**
+     * Main for debugging.
+     * 
+     * @param args 
+     */
+    public static void main (String[] args) throws FileNotFoundException {
+        
+        // Check that RNG is working as expected
+        PrintStream outf = new PrintStream("rngtest.txt");
+        for (int i=0; i<10000; i++) {
+            outf.println(Randomizer.nextGamma(2.0, 3.0));
+        }
+        outf.close();
+       
+        // Check that Gamma distribution PDF is behaving as expected:
+        outf = new PrintStream("pdftest.txt");
+        outf.println("x p");
+        for (double x=0; x<10; x+=0.01) {
+            outf.println(x + " " + (new GammaDistributionImpl(2.0,1.0/3.0)).density(x));
+        }
+        outf.close();
     }
 }
