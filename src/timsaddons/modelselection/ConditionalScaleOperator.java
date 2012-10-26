@@ -94,7 +94,7 @@ public class ConditionalScaleOperator extends Operator {
             else
                 f = scaleFactorsInput.get().getValue();
             
-            if (f<0.0)
+            if (f<1.0)
                 f = 1.0/f;
             scaleFactors.get(idx).add(f);
         }

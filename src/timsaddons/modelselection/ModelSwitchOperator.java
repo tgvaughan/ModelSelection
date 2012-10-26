@@ -55,14 +55,14 @@ public class ModelSwitchOperator extends Operator {
             "Indecies of models to which each parameter belongs.",
             Validate.REQUIRED);
     
-    public Input<RealParameter> proposalAlphaInput =
-            new Input<RealParameter>("proposalAlphas",
-            "Alpha (shape) parameters of proposal gamma distribution for each parameter.",
+    public Input<RealParameter> proposalShapesInput =
+            new Input<RealParameter>("proposalShapes",
+            "Shape parameters of proposal gamma distribution for each parameter.",
             Validate.REQUIRED);
     
-    public Input<RealParameter> proposalLambdaInput =
-            new Input<RealParameter>("proposalLambdas",
-            "Lambda (rate) parameters of proposal gamma distribution for each parameter.",
+    public Input<RealParameter> proposalMeansInput =
+            new Input<RealParameter>("proposalMeans",
+            "Mean of proposal gamma distribution for each parameter.",
             Validate.REQUIRED);
     
     int nModels;
@@ -76,10 +76,10 @@ public class ModelSwitchOperator extends Operator {
         
         // Check size of scale factor array provided:
         int nParameters = parametersInput.get().size();
-        if ((proposalAlphaInput.get().getDimension() != nParameters)
-                || (proposalLambdaInput.get().getDimension() != nParameters))
-            throw new IllegalArgumentException("Number of proposal alpha or "
-                    + "lambda parameters does not match number of model "
+        if ((proposalShapesInput.get().getDimension() != nParameters)
+                || (proposalMeansInput.get().getDimension() != nParameters))
+            throw new IllegalArgumentException("Number of proposal shape or "
+                    + "mean parameters does not match number of model "
                     + "parameters provided.");
         
         
@@ -99,8 +99,8 @@ public class ModelSwitchOperator extends Operator {
         // to form part of the state
         
         parameterModelIndicesInput.get().m_bIsEstimated.setValue(false, parameterModelIndicesInput.get());
-        proposalAlphaInput.get().m_bIsEstimated.setValue(false, proposalAlphaInput.get());
-        proposalLambdaInput.get().m_bIsEstimated.setValue(false, proposalLambdaInput.get());
+        proposalShapesInput.get().m_bIsEstimated.setValue(false, proposalShapesInput.get());
+        proposalMeansInput.get().m_bIsEstimated.setValue(false, proposalMeansInput.get());
     }
 
     @Override
@@ -123,19 +123,19 @@ public class ModelSwitchOperator extends Operator {
             int m = parameterModelIndicesInput.get().getValue(i);
             
             if (m==oldModel) {
-                double alpha = proposalAlphaInput.get().getValue(i);
-                double lambda = proposalLambdaInput.get().getValue(i);
+                double shape = proposalShapesInput.get().getValue(i);
+                double scale = proposalMeansInput.get().getValue(i)/shape;
                 double x = parametersInput.get().get(i).getValue();
                 
-                logHR += (new GammaDistributionImpl(alpha, 1./lambda)).density(x);
+                logHR += (new GammaDistributionImpl(shape, scale)).density(x);
             }
             
             if (m==newModel) {
-                double alpha = proposalAlphaInput.get().getValue(i);
-                double lambda = proposalLambdaInput.get().getValue(i);
-                double xprime = Randomizer.nextGamma(alpha, lambda);
+                double shape = proposalShapesInput.get().getValue(i);
+                double scale = proposalMeansInput.get().getValue(i)/shape;
+                double xprime = Randomizer.nextGamma(shape, 1.0/scale);
                 
-                logHR -= (new GammaDistributionImpl(alpha, 1./lambda)).density(xprime);
+                logHR -= (new GammaDistributionImpl(shape, scale)).density(xprime);
                 
                 parametersInput.get().get(i).setValue(xprime);
             }
