@@ -98,9 +98,9 @@ public class ModelSwitchOperator extends Operator {
         // Tell BEAST that we don't want the scale factors and model indices
         // to form part of the state
         
-        parameterModelIndicesInput.get().m_bIsEstimated.setValue(false, parameterModelIndicesInput.get());
-        proposalShapesInput.get().m_bIsEstimated.setValue(false, proposalShapesInput.get());
-        proposalMeansInput.get().m_bIsEstimated.setValue(false, proposalMeansInput.get());
+        parameterModelIndicesInput.get().isEstimatedInput.setValue(false, parameterModelIndicesInput.get());
+        proposalShapesInput.get().isEstimatedInput.setValue(false, proposalShapesInput.get());
+        proposalMeansInput.get().isEstimatedInput.setValue(false, proposalMeansInput.get());
     }
 
     @Override

@@ -102,8 +102,8 @@ public class ConditionalScaleOperator extends Operator {
         // Tell BEAST that we don't want the scale factors and model indices
         // to form part of the state
         
-        parameterModelIndicesInput.get().m_bIsEstimated.setValue(false, parameterModelIndicesInput.get());
-        scaleFactorsInput.get().m_bIsEstimated.setValue(false, scaleFactorsInput.get());
+        parameterModelIndicesInput.get().isEstimatedInput.setValue(false, parameterModelIndicesInput.get());
+        scaleFactorsInput.get().isEstimatedInput.setValue(false, scaleFactorsInput.get());
     }
 
     @Override
